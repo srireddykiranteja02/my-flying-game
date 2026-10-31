@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Sky Hopper</title>
+<style>
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;font-family:system-ui,-apple-system,Segoe UI,sans-serif;background:#8bdcff}
+body{display:grid;place-items:center}.game{position:relative;width:min(100vw,480px);height:min(100dvh,850px);overflow:hidden;background:linear-gradient(#76d5ff 0%,#c9f4ff 72%,#8fe28c 72%,#57bd69 100%);touch-action:manipulation}
+canvas{width:100%;height:100%;display:block}.hud{position:absolute;top:14px;left:0;right:0;text-align:center;color:#12344a;font-weight:900;font-size:32px;text-shadow:0 2px white;pointer-events:none}
+.panel{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:24px;background:#14324a55}
+.card{width:min(100%,330px);padding:25px 22px;text-align:center;background:#fff;border:4px solid #173c55;border-radius:24px;box-shadow:0 8px 0 #173c55}
+h1{margin:0 0 8px;font-size:32px;color:#173c55}.sub{color:#456477;margin:0 0 18px;line-height:1.45}
+button{border:0;border-radius:14px;background:#ffca45;color:#17344b;font-size:18px;font-weight:900;padding:13px 25px;box-shadow:0 5px 0 #d99120;cursor:pointer}
+button:active{transform:translateY(3px);box-shadow:0 2px 0 #d99120}
+.small{font-size:12px;color:#648093;margin-top:16px}
+.hidden{display:none}
+</style>
+</head>
+<body>
+<div class="game" id="game">
+<canvas id="c" width="480" height="850" aria-label="Flying game"></canvas>
+<div class="hud" id="score">0</div>
+<div class="panel" id="start">
+ <div class="card"><h1>☁️ SKY HOPPER</h1><p class="sub">Tap to fly. Dodge the pipes. How far can you go?</p><button id="play">PLAY</button><div class="small">Tap anywhere to flap • Avoid the obstacles</div></div>
+</div>
+<div class="panel hidden" id="over">
+ <div class="card"><h1>💥 OOPS!</h1><p class="sub" id="result">Your score: 0</p><button id="again">PLAY AGAIN</button><div class="small">Tap or press the button to try again</div></div>
+</div>
+</div>
+<script>
+(()=>{
+const canvas=document.getElementById('c'),ctx=canvas.getContext('2d');
+const scoreEl=document.getElementById('score'),startEl=document.getElementById('start'),overEl=document.getElementById('over'),resultEl=document.getElementById('result');
+const W=480,H=850;let player,obstacles,score,best=+(localStorage.getItem('skyhopper-best')||0),running=false,frame=0,last=0;
+function reset(){player={x:120,y:360,vy:0,r:22};obstacles=[];score=0;frame=0;scoreEl.textContent='0';}
+function begin(){reset();running=true;startEl.classList.add('hidden');overEl.classList.add('hidden');last=performance.now();requestAnimationFrame(loop);}
+function flap(){if(!running){if(!startEl.classList.contains('hidden'))begin();return;}player.vy=-7.3;}
+function end(){running=false;best=Math.max(best,score);localStorage.setItem('skyhopper-best',best);resultEl.textContent=`Your score: ${score}  •  Best: ${best}`;overEl.classList.remove('hidden');}
+function addPipe(){let gap=190,top=110+Math.random()*330;obstacles.push({x:W+20,top,gap,passed:false});}
+function drawCloud(x,y,s){ctx.fillStyle='rgba(255,255,255,.85)';ctx.beginPath();ctx.arc(x,y,22*s,0,Math.PI*2);ctx.arc(x+24*s,y-12*s,29*s,0,Math.PI*2);ctx.arc(x+52*s,y,22*s,0,Math.PI*2);ctx.fill();}
+function draw(){
+ ctx.clearRect(0,0,W,H);
+ drawCloud(45+(frame*.25%560),115,.8);drawCloud(300-(frame*.18%560),230,.65);
+ ctx.fillStyle='#64c978';ctx.fillRect(0,690,W,160);ctx.fillStyle='#319b59';ctx.fillRect(0,690,W,12);
+ for(const p of obstacles){ctx.fillStyle='#25a85c';ctx.fillRect(p.x,0,72,p.top);ctx.fillRect(p.x-7,p.top-24,86,24);let y=p.top+p.gap;ctx.fillRect(p.x,y,72,H-y);ctx.fillRect(p.x-7,y,86,24);}
+ // character
+ ctx.save();ctx.translate(player.x,player.y);ctx.rotate(Math.max(-.45,Math.min(.75,player.vy*.055)));
+ ctx.fillStyle='#ffcf45';ctx.strokeStyle='#9b5b1d';ctx.lineWidth=4;ctx.beginPath();ctx.arc(0,0,22,0,Math.PI*2);ctx.fill();ctx.stroke();
+ ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(8,-7,7,0,Math.PI*2);ctx.fill();ctx.fillStyle='#17344b';ctx.beginPath();ctx.arc(11,-7,3,0,Math.PI*2);ctx.fill();
+ ctx.fillStyle='#ff7b45';ctx.beginPath();ctx.moveTo(18,2);ctx.lineTo(35,8);ctx.lineTo(18,13);ctx.closePath();ctx.fill();
+ ctx.fillStyle='#f49c28';ctx.beginPath();ctx.ellipse(-8,8,-12,6,Math.sin(frame*.3)*.3,0,Math.PI*2);ctx.fill();ctx.restore();
+}
+function loop(t){if(!running)return;let dt=Math.min((t-last)/16.67,2);last=t;frame++;
+ player.vy+=.38*dt;player.y+=player.vy*dt;
+ if(frame%100===1)addPipe();
+ for(const p of obstacles){p.x-=3.1*dt;if(!p.passed&&p.x+72<player.x){p.passed=true;score++;scoreEl.textContent=score;}}
+ obstacles=obstacles.filter(p=>p.x>-100);
+ let hit=player.y+player.r>690||player.y-player.r<0;
+ for(const p of obstacles){if(player.x+player.r>p.x&&player.x-player.r<p.x+72&&(player.y-player.r<p.top||player.y+player.r>p.top+p.gap))hit=true;}
+ draw();if(hit){end();return;}requestAnimationFrame(loop);}
+document.getElementById('play').addEventListener('click',begin);document.getElementById('again').addEventListener('click',begin);
+document.getElementById('game').addEventListener('pointerdown',e=>{if(e.target.tagName!=='BUTTON')flap();});
+document.addEventListener('keydown',e=>{if(e.code==='Space'){e.preventDefault();flap();}});
+reset();draw();
+})();
+</script>
+</body>
+</html>
